@@ -70,7 +70,7 @@ public class InMemoryClientModel implements ClientModel {
     public double totalValue(final String name) {
         final Client client = this.getClient(name);
         return client.getFunds() + client.getClientStocks().stream()
-                .mapToDouble(stock -> stock.getQuantity() * this.stockClient.queryPrice(stock.getName()))
+                .mapToDouble(stock -> stock.getQuantity() * this.stockClient.queryPrice(stock.getQualifiedName()))
                 .sum();
     }
 

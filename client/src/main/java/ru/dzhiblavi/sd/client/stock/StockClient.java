@@ -1,5 +1,7 @@
 package ru.dzhiblavi.sd.client.stock;
 
+import org.springframework.http.HttpStatus;
+
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
@@ -33,38 +35,58 @@ public class StockClient {
         this.url = url;
     }
 
-    private HttpResponse doRequest(final String method, final Map<String, String> parameters) {
+    private String readStream(final InputStream reader) throws IOException {
+        final StringBuilder content = new StringBuilder();
+        try (final BufferedReader in = new BufferedReader(new InputStreamReader(reader))) {
+            String inputLine;
+            while ((inputLine = in.readLine()) != null) {
+                content
+                        .append(inputLine)
+                        .append(System.lineSeparator());
+            }
+            return content.toString();
+        }
+    }
+
+    private HttpResponse doRequest(final String reqMethod, final Map<String, String> parameters, final String method) {
         final HttpResponse response = new HttpResponse();
         try {
-            final URL url = new URL(this.url + "/" + method);
+            final URL url = new URL(this.url + "/" + reqMethod);
             final HttpURLConnection con = (HttpURLConnection) url.openConnection();
-            con.setRequestMethod("GET");
+            con.setRequestMethod(method);
             con.setDoOutput(true);
             final DataOutputStream out = new DataOutputStream(con.getOutputStream());
             out.writeBytes(ParameterStringBuilder.getParamsString(parameters));
             out.flush();
             out.close();
+
             response.code = con.getResponseCode();
-            final StringBuilder content = new StringBuilder();
-            try (final BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
-                String inputLine;
-                while ((inputLine = in.readLine()) != null) {
-                    content
-                            .append(inputLine)
-                            .append(System.lineSeparator());
-                }
-                con.disconnect();
-                response.response = content.toString();
+            if (response.code != HttpStatus.OK.value()) {
+                response.response = readStream(con.getErrorStream());
+            } else {
+                response.response = readStream(con.getInputStream());
             }
-        } catch (final Exception e) {
-            response.code = 500;
-            response.response = "Failed to perform a request to stock market: " + e.getMessage();
+            con.disconnect();
+
+            if (response.code != HttpStatus.OK.value()) {
+                throw new RuntimeException("Bad response code " + response.code + ": " + response.response);
+            }
+        } catch (final IOException e) {
+            throw new RuntimeException("Failed to perform a request: " + e.getMessage());
         }
         return response;
     }
 
+    public HttpResponse doGetRequest(final String reqMethod, final Map<String, String> parameters) {
+        return this.doRequest(reqMethod, parameters, "GET");
+    }
+
+    public HttpResponse doPostRequest(final String reqMethod, final Map<String, String> parameters) {
+        return this.doRequest(reqMethod, parameters, "POST");
+    }
+
     public double modifyStock(final String stockName, final String companyName, final long quantityDelta, final double priceDelta) {
-        final HttpResponse resp = this.doRequest(
+        final HttpResponse resp = this.doGetRequest(
                 "modify-stock",
                 Map.of(
                         "name", stockName,
@@ -73,25 +95,19 @@ public class StockClient {
                         "pdelta", String.valueOf(priceDelta)
                 )
         );
-        if (resp.code != 200) {
-            throw new RuntimeException(resp.response);
-        }
         final String[] split = resp.response.split(" ");
         return Double.parseDouble(split[split.length - 1]);
     }
 
-    public double queryPrice(final String stockName) {
-        final HttpResponse resp = this.doRequest("stock-info", Map.of());
-        if (resp.code != 200) {
-            throw new RuntimeException(resp.response);
-        }
+    public double queryPrice(final String stockQualifiedName) {
+        final HttpResponse resp = this.doGetRequest("stock-info", Map.of());
         final String[] split = resp.response.split(System.lineSeparator());
         for (final String line : split) {
-            if (line.contains("'" + stockName + "'")) {
+            if (line.contains("'" + stockQualifiedName + "'")) {
                 final String[] splitLine = line.split(" ");
                 return Double.parseDouble(splitLine[splitLine.length - 1]);
             }
         }
-        throw new IllegalArgumentException("No stock " + stockName + " has been found on market");
+        throw new IllegalArgumentException("No stock " + stockQualifiedName + " has been found on market");
     }
 }

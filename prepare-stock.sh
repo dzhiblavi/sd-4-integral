@@ -12,5 +12,3 @@ curl 'http://localhost:8080/new-stock?name=s3&company=Amd&quantity=10&price=10'
 curl 'http://localhost:8080/new-stock?name=s4&company=Amd&quantity=10&price=1000'
 
 curl 'http://localhost:8080/stock-info'
-
-

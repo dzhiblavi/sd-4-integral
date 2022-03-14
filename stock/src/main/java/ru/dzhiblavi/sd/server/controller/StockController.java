@@ -1,5 +1,7 @@
 package ru.dzhiblavi.sd.server.controller;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,20 +21,13 @@ public class StockController {
     private final StockModel stockDao;
     private final CompanyModel companyDao;
 
-    private String execute(final Runnable runnable, final String onSuccess) {
+    private ResponseEntity<?> execute(final Callable<String> callable) {
         try {
-            runnable.run();
-            return onSuccess + System.lineSeparator();
-        } catch (final Throwable t) {
-            return "An error occurred: " + t.getMessage() + System.lineSeparator();
-        }
-    }
-
-    private String execute(final Callable<String> callable) {
-        try {
-            return callable.call() + System.lineSeparator();
-        } catch (final Throwable t) {
-            return "An error occurred: " + t.getMessage() + System.lineSeparator();
+            return new ResponseEntity<>(callable.call() + System.lineSeparator(), HttpStatus.OK);
+        } catch (final IllegalArgumentException e) {
+            return new ResponseEntity<>("An error occurred: " + e.getMessage() + System.lineSeparator(), HttpStatus.BAD_REQUEST);
+        } catch (final Exception e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -44,44 +39,42 @@ public class StockController {
     }
 
     @RequestMapping("/new-company")
-    public String newCompany(@RequestParam("name") final String name) {
-        return execute(
-                () -> companyDao.addCompany(new Company(name)),
-                "Company '" + name + "' has been successfully added."
-        );
+    public ResponseEntity<?> newCompany(@RequestParam("name") final String name) {
+        return execute(() -> {
+            companyDao.addCompany(new Company(name));
+            return "Company '" + name + "' has been successfully added.";
+        });
     }
 
     @RequestMapping("/new-stock")
-    public String newStock(@RequestParam("name") final String name,
-                           @RequestParam("company") final String companyName,
-                           @RequestParam("price") final double price,
-                           @RequestParam("quantity") final long quantity) {
-        return execute(
-                () -> this.stockDao.addStock(new Stock(name, companyName, quantity, price)),
-                "New stock '" + name + "' by '" + companyName + "' has been successfully added."
-        );
+    public ResponseEntity<?> newStock(@RequestParam("name") final String name,
+                                      @RequestParam("company") final String companyName,
+                                      @RequestParam("price") final double price,
+                                      @RequestParam("quantity") final long quantity) {
+        return execute(() -> {
+            this.stockDao.addStock(new Stock(name, companyName, quantity, price));
+            return "New stock '" + name + "' by '" + companyName + "' has been successfully added.";
+        });
     }
 
     @RequestMapping("/stock-info")
-    public String stockInfo() {
+    public ResponseEntity<?> stockInfo() {
         return execute(() ->
                 this.stockDao.getAllStocks().stream()
-                        .map(stock -> stock.getCompanyName() + ": '" + stock.getName()
+                        .map(stock -> "'" + stock.getName() + ":" + stock.getCompanyName()
                                 + "', quantity: " + stock.getQuantity() + ", price: " + stock.getPrice())
                         .collect(Collectors.joining(System.lineSeparator()))
         );
     }
 
     @RequestMapping("/modify-stock")
-    public String modifyStock(@RequestParam("name") final String name,
-                              @RequestParam("company") final String companyName,
-                              @RequestParam(name = "qdelta", required = false, defaultValue = "0") final long quantityDelta,
-                              @RequestParam(name = "pdelta", required = false, defaultValue = "0") final double priceDelta) {
-        return execute(
-                () -> {
-                    final double price = this.stockDao.modifyStock(name, companyName, quantityDelta, priceDelta);
-                    return "Successfully modified stock '" + name + "' by '" + companyName + "', price: " + price;
-                }
-        );
+    public ResponseEntity<?> modifyStock(@RequestParam("name") final String name,
+                                         @RequestParam("company") final String companyName,
+                                         @RequestParam(name = "qdelta", required = false, defaultValue = "0") final long quantityDelta,
+                                         @RequestParam(name = "pdelta", required = false, defaultValue = "0") final double priceDelta) {
+        return execute(() -> {
+            final double price = this.stockDao.modifyStock(name, companyName, quantityDelta, priceDelta);
+            return "Successfully modified stock '" + name + "' by '" + companyName + "', price: " + price;
+        });
     }
 }

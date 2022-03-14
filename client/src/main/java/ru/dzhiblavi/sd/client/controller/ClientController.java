@@ -11,15 +11,6 @@ import java.util.stream.Collectors;
 public class ClientController {
     private final ClientModel clientModel;
 
-    private String execute(final Runnable runnable, final String onSuccess) {
-        try {
-            runnable.run();
-            return onSuccess + System.lineSeparator();
-        } catch (final Throwable t) {
-            return "An error occurred: " + t.getMessage() + System.lineSeparator();
-        }
-    }
-
     private String execute(final Callable<String> callable) {
         try {
             return callable.call() + System.lineSeparator();
@@ -35,25 +26,25 @@ public class ClientController {
     @RequestMapping("/new-user")
     public String newUser(@RequestParam("name") final String name,
                           @RequestParam(name = "funds", required = false, defaultValue = "0") final double funds) {
-        return execute(
-                () -> this.clientModel.addClient(new Client(name, funds)),
-                "Client '" + name + "' has been successfully added."
-        );
+        return execute(() -> {
+            this.clientModel.addClient(new Client(name, funds));
+            return "Client '" + name + "' has been successfully added.";
+        });
     }
 
     @RequestMapping("/add-funds")
     public String addFunds(@RequestParam("name") final String name, @RequestParam("delta") final double delta) {
-        return execute(
-                () -> this.clientModel.addFunds(name, delta),
-                "Funds have been successfully added to '" + name + "'"
-        );
+        return execute(() -> {
+            this.clientModel.addFunds(name, delta);
+            return "Funds have been successfully added to '" + name + "'";
+        });
     }
 
     @RequestMapping("/get-stocks")
     public String getStocksList(@RequestParam("name") final String name) {
         return execute(() ->
                 this.clientModel.getClient(name).getClientStocks().stream()
-                        .map(stock -> stock.getName() + ": " + stock.getQuantity() + " x " + this.clientModel.queryPrice(stock.getName()))
+                        .map(stock -> stock.getName() + ": " + stock.getQuantity() + " x " + this.clientModel.queryPrice(stock.getQualifiedName()))
                         .collect(Collectors.joining(System.lineSeparator()))
         );
     }

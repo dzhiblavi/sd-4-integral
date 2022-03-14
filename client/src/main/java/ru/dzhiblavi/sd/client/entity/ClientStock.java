@@ -11,6 +11,10 @@ public class ClientStock {
         this.quantity = quantity;
     }
 
+    public String getQualifiedName() {
+        return getQualifiedName(this.name, this.companyName);
+    }
+
     public String getName() {
         return name;
     }
@@ -25,5 +29,9 @@ public class ClientStock {
 
     public void changeQuantity(final long quantityDelta) {
         this.quantity += quantityDelta;
+    }
+
+    public static String getQualifiedName(final String stockName, final String companyName) {
+        return stockName + ":" + companyName;
     }
 }
